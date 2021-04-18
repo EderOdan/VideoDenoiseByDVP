@@ -11,46 +11,14 @@ import torch.nn as nn
 from train_common import resume_training, lr_scheduler, log_train_psnr, save_model_checkpoint
 import numpy as np
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
-from vgg import VGG19
+
 from utils import batch_psnr, init_logger_test, \
     variable_to_cv2_image, remove_dataparallel_wrapper, open_sequence, close_logger
-# def validate_and_log(noiseframe,dataset_val ,writer, epoch, lr=0.0001, logger):
-#     t1 = time.time()
-#     psnr_val = 0
-#     with torch.no_grad():
-#         for seq_val in dataset_val:
-# define loss function
-VGG_19 = VGG19(requires_grad=False).to('cuda')
-def compute_error(real, fake):
-    # return tf.reduce_mean(tf.abs(fake-real))
-    return torch.mean(torch.abs(fake - real))
-def normalize_batch(batch):
-    # Normalize batch using ImageNet mean and std
-    mean = batch.new_tensor([0.485, 0.456, 0.406]).view(1, -1, 1, 1)
-    std = batch.new_tensor([0.229, 0.224, 0.225]).view(1, -1, 1, 1)
-    return (batch - mean) / std
+from loss import Lp_loss as Lc_loss
+
+from loss import L2Loss
 
 
-def Lp_loss(x, y):
-    vgg_real = VGG_19(x)
-    vgg_fake = VGG_19(y)
-    p0 = compute_error(x, y)
-
-    content_loss_list = []
-    content_loss_list.append(p0)
-    feat_layers = {'conv1_2': 1.0 / 2.6, 'conv2_2': 1.0 / 4.8, 'conv3_2': 1.0 / 3.7, 'conv4_2': 1.0 / 5.6,
-                   'conv5_2': 10.0 / 1.5}
-
-    for layer, w in feat_layers.items():
-        pi = compute_error(vgg_real[layer], vgg_fake[layer])
-        content_loss_list.append(w * pi)
-
-    content_loss = torch.sum(torch.stack(content_loss_list))
-
-    return content_loss
-
-loss_L2 = torch.nn.MSELoss()
-loss_L1 = torch.nn.L1Loss()
 def initialize_weights(model):
     for module in model.modules():
         if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
@@ -85,11 +53,6 @@ def main(**args):
 
     initialize_weights(model)
 
-    # Define loss
-    criterion = nn.MSELoss(reduction='sum')
-    # criterion = nn.MSELoss()
-    criterion.cuda()
-
     # Optimizer
     # optimizer = optim.Adam(model.parameters(), lr=args['lr'])
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
@@ -110,7 +73,6 @@ def main(**args):
         # for param_group in optimizer.param_groups:
         #     param_group["lr"] = current_lr
         # print('\nlearning rate %f' % current_lr)
-
 
         # train
         for i, (net_in, process_gt) in enumerate(loader_train):
@@ -133,7 +95,7 @@ def main(**args):
             out_train = model(net_in)
 
             # Compute loss
-            loss = Lp_loss(process_gt, out_train)
+            loss = L2Loss(process_gt, out_train)
             # loss = criterion(process_gt, out_train)
             loss.backward()
             optimizer.step()
@@ -150,8 +112,6 @@ def main(**args):
             # update step counter
             training_params['step'] += 1
 
-
-
         # Call to model.eval() to correctly set the BN layers before inference
         model.eval()
         # save model and checkpoint
@@ -160,7 +120,8 @@ def main(**args):
 
         # Validation and log images
         # validate_and_log(noiseframe = out_train,dataset_val = dataset_val,writer=writer, epoch=epoch, lr=0.0001, logger=logger)
-        t1 = time.time()
+
+        pnsr_list = {}
         psnr_val = 0
         with torch.no_grad():
             for index, (net_in, process_gt) in enumerate(dataset):
@@ -169,17 +130,15 @@ def main(**args):
                 val_frame = dataset_val[index]
                 psnr_val += compare_psnr(val_frame, denoise_frame, data_range=1.)
         cur_epoch_psnr = psnr_val/len(dataset)
+        pnsr_list[epoch] = cur_epoch_psnr
         print("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr,loss))
         logger.info("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr, loss))
 
+    sorted_psnr = sorted(pnsr_list.items(), key=lambda kv: (kv[1], kv[0]))
 
-
-
-
-
-
-
-
+    max_psnr_epoch = list(pnsr_list.keys())[0]
+    max_psnr = list(pnsr_list.values())[0]
+    print('the max psnr :{} epoch: {} '.format(max_psnr,max_psnr_epoch+1))
 
 
     # Print elapsed time
@@ -188,10 +147,6 @@ def main(**args):
 
     # Close logger file
     close_logger(logger)
-
-
-
-
 if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser()
@@ -220,7 +175,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_every", type=int, default=None, help="Number of training steps to log psnr and perform orthogonalization")
     parser.add_argument("--milestone", nargs=2, type=int, default=[30, 80], help="When to decay learning rate; should be lower than 'epochs'")
     parser.add_argument("--use_gpu", default=1, type=int, help="use gpu or not")
-    parser.add_argument("--epochs", default=100, type=int, help="The max number of epochs for training")
+    parser.add_argument("--epochs", default=10, type=int, help="The max number of epochs for training")
     parser.add_argument("--log_dir", type=str, default="./logstets", \
                         help='path of log files')
     parser.add_argument("--lr", type=float, default=1e-3, \
