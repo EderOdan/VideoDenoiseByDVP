@@ -11,14 +11,14 @@ import torch.nn as nn
 from train_common import resume_training, lr_scheduler, log_train_psnr, save_model_checkpoint
 import numpy as np
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
-
+from image_warp import image_warp
 from utils import batch_psnr, init_logger_test, \
     variable_to_cv2_image, remove_dataparallel_wrapper, open_sequence, close_logger
 from loss import Lp_loss as Lc_loss
-
+from pwc import estimate as pwcnet
 from loss import L2Loss
 
-
+loss_L1 = torch.nn.L1Loss()
 def initialize_weights(model):
     for module in model.modules():
         if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
@@ -32,9 +32,9 @@ def initialize_weights(model):
 def main(**args):
     # Load dataset
     print('> Loading datasets ...')
-    dataset = Video_Provider_For_IOCV(noise_path=args['input_path'], process_path=args['processed_path'])
+    dataset = Video_Provider_For_IOCV(noise_path=args['input_path'], process_path=args['processed_path'],twoframes= False)
 
-    loader_train = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
+    loader_train = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, pin_memory=True)
     dataset_val = ValDataset_IOCV(gt_path=args['gt_path'])
     # fix ~
     num_minibatches = len(dataset)
@@ -62,6 +62,7 @@ def main(**args):
 
     # Training
     start_time = time.time()
+    pnsr_list = {}
     for epoch in range(start_epoch, args['epochs']):
         # fastdvdnet learning rate setting
         # # Set learning rate
@@ -75,6 +76,7 @@ def main(**args):
         # print('\nlearning rate %f' % current_lr)
 
         # train
+
         for i, (net_in, process_gt) in enumerate(loader_train):
 
             # Pre-training step
@@ -94,8 +96,18 @@ def main(**args):
             # Evaluate model and optimize it
             out_train = model(net_in)
 
+
+            tenFirst = net_in[0, :, :, :]
+            tenSecond = net_in[1, :, :, :]
+            tenOutput = pwcnet(tenFirst, tenSecond).detach().permute(0, 2, 3, 1).numpy()
+            tenSecond = tenSecond.cpu().unsqueeze(0).permute(0, 2, 3, 1).detach().numpy() * (255.0)
+            deformed_nearest = image_warp(tenSecond.copy(), tenOutput, mode='bilinear')
+
+            pwc_loss = loss_L1(tenFirst.unsqueeze(0) / 255.,
+                               torch.from_numpy(deformed_nearest).float().to('cuda').permute(0, 3, 1, 2) / 255.)
+
             # Compute loss
-            loss = L2Loss(process_gt, out_train)
+            loss = loss_L1(process_gt, out_train) + pwc_loss
             # loss = criterion(process_gt, out_train)
             loss.backward()
             optimizer.step()
@@ -121,7 +133,7 @@ def main(**args):
         # Validation and log images
         # validate_and_log(noiseframe = out_train,dataset_val = dataset_val,writer=writer, epoch=epoch, lr=0.0001, logger=logger)
 
-        pnsr_list = {}
+
         psnr_val = 0
         with torch.no_grad():
             for index, (net_in, process_gt) in enumerate(dataset):
@@ -130,15 +142,15 @@ def main(**args):
                 val_frame = dataset_val[index]
                 psnr_val += compare_psnr(val_frame, denoise_frame, data_range=1.)
         cur_epoch_psnr = psnr_val/len(dataset)
-        pnsr_list[epoch] = cur_epoch_psnr
+        pnsr_list['{}'.format(epoch)] = cur_epoch_psnr
         print("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr,loss))
         logger.info("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr, loss))
 
-    sorted_psnr = sorted(pnsr_list.items(), key=lambda kv: (kv[1], kv[0]))
-
-    max_psnr_epoch = list(pnsr_list.keys())[0]
-    max_psnr = list(pnsr_list.values())[0]
-    print('the max psnr :{} epoch: {} '.format(max_psnr,max_psnr_epoch+1))
+    sorted_psnr = sorted(pnsr_list.items(),key=lambda x:x[1],reverse=True)
+    print(sorted_psnr)
+    max_psnr_epoch = sorted_psnr[0][0]
+    max_psnr = sorted_psnr[0][1]
+    print('the max psnr :{} epoch: {} '.format(max_psnr,max_psnr_epoch))
 
 
     # Print elapsed time
@@ -159,7 +171,7 @@ if __name__ == '__main__':
     # parser.add_argument("--gt_path", default='../data/aerobatics/gt', type=str, help="dir of processed gt video")
     parser.add_argument("--input_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input',
                         type=str, help="dir of the noise video")
-    parser.add_argument("--processed_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/CBM3D_process',
+    parser.add_argument("--processed_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/dncnn_process',
                         type=str, help="dir of processed gt video")
     parser.add_argument("--gt_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/gt', type=str,
                         help="dir of gt video")
@@ -175,7 +187,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_every", type=int, default=None, help="Number of training steps to log psnr and perform orthogonalization")
     parser.add_argument("--milestone", nargs=2, type=int, default=[30, 80], help="When to decay learning rate; should be lower than 'epochs'")
     parser.add_argument("--use_gpu", default=1, type=int, help="use gpu or not")
-    parser.add_argument("--epochs", default=10, type=int, help="The max number of epochs for training")
+    parser.add_argument("--epochs", default=100, type=int, help="The max number of epochs for training")
     parser.add_argument("--log_dir", type=str, default="./logstets", \
                         help='path of log files')
     parser.add_argument("--lr", type=float, default=1e-3, \

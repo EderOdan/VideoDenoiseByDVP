@@ -52,11 +52,12 @@ class Video_Provider_For_Davis(Dataset):
         gt = self.gt_seq[index,:,:,:]
         return noise, process_gt,gt
 class Video_Provider_For_IOCV(Dataset):
-    def __init__(self, noise_path,process_path, aug_mode=False,odd_frame_mode = True,):
+    def __init__(self, noise_path,process_path, twoframes, aug_mode=False,odd_frame_mode = True,):
     # def __init__(self, gt_path,process_path):
         if not os.path.exists(noise_path):
             raise("file_name is not valid")
-        # self.aug_mode = aug_mode
+        # self.aug_mode = aug_mod
+        self.twoframes = twoframes
         self.noise_path = noise_path
         self.process_path = process_path
         self.files = get_imagenames(noise_path)
@@ -72,8 +73,12 @@ class Video_Provider_For_IOCV(Dataset):
         else:
             return len(self.files)
     def __getitem__(self,index):
-        noise=self.noise_seq[index,:,:,:]
-        process_gt = self.process_seq[index,:,:,:]
+        if self.twoframes:
+            noise = np.concatenate([np.expand_dims(self.noise_seq[index, :, :, :], 0), np.expand_dims(self.noise_seq[index+1, :, :, :], 0)], axis=0)
+            process_gt = np.concatenate([np.expand_dims(self.process_seq[index, :, :, :], 0), np.expand_dims(self.process_seq[index + 1, :, :, :], 0)],axis=0)
+        else:
+            noise = self.noise_seq[index, :, :, :]
+            process_gt = self.process_seq[index, :, :, :]
         return noise, process_gt
 def Davis_dataset_test():
     gt_path = '../data/aerobatics/gt'
@@ -95,11 +100,12 @@ def IOCV_dataset_test():
     noise_path = '../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input'
 
     process_path = '../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/dncnn_process'
-    dataset = Video_Provider_For_IOCV(noise_path = noise_path, process_path=process_path)
+    dataset = Video_Provider_For_IOCV(noise_path = noise_path, process_path=process_path,twoframes= False)
     print(len(dataset))
-    print(dataset[48][0].shape)
-    # train_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
-    # for index, (noise, process_gt, gt) in enumerate(train_loader):
+    print(dataset[46][0].shape)
+    train_loader = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, pin_memory=True)
+    for index, (noise, process_gt) in enumerate(train_loader):
+        print(noise.shape)
     #     if index == 1:
     #         out_img = noise.cpu()[0] * 255
     #         out_img = out_img.clamp(0, 255).type(torch.uint8).permute(1, 2, 0).numpy()

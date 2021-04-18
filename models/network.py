@@ -49,6 +49,18 @@ class UNet(nn.Module):
         self.conv = nn.Conv2d(
             in_channels=features, out_channels=out_channels, kernel_size=1
         )
+    # kaiming init
+    #     # Init weights
+    #     self.reset_params()
+    #
+    # @staticmethod
+    # def weight_init(m):
+    #     if isinstance(m, nn.Conv2d):
+    #         nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+    #
+    # def reset_params(self):
+    #     for _, m in enumerate(self.modules()):
+    #         self.weight_init(m)
 
     def forward(self, x):
         enc1 = self.encoder1(x)

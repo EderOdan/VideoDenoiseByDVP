@@ -97,17 +97,17 @@ def save_model_checkpoint(model, argdict, optimizer, train_pars, epoch):
 	Also saves a checkpoint under 'argdict['log_dir'] + '/ckpt.pth'
 	"""
 	torch.save(model.state_dict(), os.path.join(argdict['log_dir'], 'net.pth'))
-	save_dict = { \
-		'state_dict': model.state_dict(), \
-		'optimizer' : optimizer.state_dict(), \
-		'training_params': train_pars, \
-		'args': argdict\
-		}
-	torch.save(save_dict, os.path.join(argdict['log_dir'], 'ckpt.pth'))
+	# save_dict = { \
+	# 	'state_dict': model.state_dict(), \
+	# 	'optimizer' : optimizer.state_dict(), \
+	# 	'training_params': train_pars, \
+	# 	'args': argdict\
+	# 	}
+	# torch.save(save_dict, os.path.join(argdict['log_dir'], 'ckpt.pth'))
 
 	if epoch % argdict['save_every_epochs'] == 0:
-		torch.save(save_dict, os.path.join(argdict['log_dir'], 'ckpt_e{}.pth'.format(epoch+1)))
-	del save_dict
+		torch.save(model.state_dict(), os.path.join(argdict['log_dir'], 'ckpt_e{}.pth'.format(epoch+1)))
+	# del save_dict
 
 def validate_and_log(model_temp, dataset_val, valnoisestd, temp_psz, writer, \
 					 epoch, lr, logger, trainimg):
