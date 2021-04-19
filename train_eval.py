@@ -105,11 +105,11 @@ def main(**args):
             tenSecond = tenSecond.cpu().unsqueeze(0).permute(0, 2, 3, 1).detach().numpy() * (255.0)
             deformed_nearest = image_warp(tenSecond.copy(), tenOutput, mode='bilinear')
 
-            pwc_loss = loss_L1(tenFirst.unsqueeze(0) / 255.,
+            pwc_loss = L2Loss(net_in[0, :, :, :],
                                torch.from_numpy(deformed_nearest).float().to('cuda').permute(0, 3, 1, 2) / 255.)
 
             # Compute loss
-            loss = loss_L1(process_gt, out_train) + pwc_loss
+            loss = L2Loss(process_gt, out_train) + pwc_loss
             # loss = criterion(process_gt, out_train)
             loss.backward()
             optimizer.step()
