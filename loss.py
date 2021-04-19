@@ -7,15 +7,15 @@ VGG_19 = VGG19(requires_grad=False).to('cuda')
 def compute_error(real, fake):
     # return tf.reduce_mean(tf.abs(fake-real))
     return torch.mean(torch.abs(fake - real))
-# def normalize_batch(batch):
-#     # Normalize batch using ImageNet mean and std
-#     mean = batch.new_tensor([0.485, 0.456, 0.406]).view(1, -1, 1, 1)
-#     std = batch.new_tensor([0.229, 0.224, 0.225]).view(1, -1, 1, 1)
-#     return (batch - mean) / std
+def normalize_batch(batch):
+    # Normalize batch using ImageNet mean and std
+    mean = batch.new_tensor([0.485, 0.456, 0.406]).view(1, -1, 1, 1)
+    std = batch.new_tensor([0.229, 0.224, 0.225]).view(1, -1, 1, 1)
+    return (batch - mean) / std
 def Lp_loss(x, y):
-    vgg_real = VGG_19(x)
-    vgg_fake = VGG_19(y)
-    p0 = compute_error(x, y)
+    vgg_real = VGG_19(normalize_batch(x))
+    vgg_fake = VGG_19(normalize_batch(y))
+    p0 = compute_error(normalize_batch(x), normalize_batch(y))
 
     content_loss_list = []
     content_loss_list.append(p0)
@@ -29,6 +29,7 @@ def Lp_loss(x, y):
     content_loss = torch.sum(torch.stack(content_loss_list))
 
     return content_loss
+
 
 L2Loss = nn.MSELoss(reduction='sum')
 

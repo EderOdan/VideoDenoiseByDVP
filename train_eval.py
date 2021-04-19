@@ -96,21 +96,24 @@ def main(**args):
             # Evaluate model and optimize it
             out_train = model(net_in)
 
+            # seeing motion in the dark loss 33.011dB
+            # Loss_lc = Lc_loss(tenFirst,torch.from_numpy(deformed_nearest).float().to('cuda').permute(0, 3, 1, 2) / 255.)
+            # loss_lr = loss_L1(process_gt, out_train)
+            # loss = loss_lr + 0.05*loss_lr
 
-            # tenFirst = net_in[0, :, :, :]
-            # tenSecond = net_in[1, :, :, :]
-            tenFirst = out_train[0, :, :, :]
-            tenSecond = out_train[1, :, :, :]
-            tenOutput = pwcnet(tenFirst, tenSecond).detach().permute(0, 2, 3, 1).numpy()
-            tenSecond = tenSecond.cpu().unsqueeze(0).permute(0, 2, 3, 1).detach().numpy() * (255.0)
-            deformed_nearest = image_warp(tenSecond.copy(), tenOutput, mode='bilinear')
 
-            pwc_loss = L2Loss(process_gt[0, :, :, :].unsqueeze(0),
-                               torch.from_numpy(deformed_nearest).float().to('cuda').permute(0, 3, 1, 2) / 255.)
+
+            # tenFirst = out_train[0, :, :, :]
+            # tenSecond = out_train[1, :, :, :]
+            # tenOutput = pwcnet(tenFirst, tenSecond).detach().permute(0, 2, 3, 1).numpy()
+            # tenSecond = tenSecond.cpu().unsqueeze(0).permute(0, 2, 3, 1).detach().numpy() * (255.0)
+            # deformed_nearest = image_warp(tenSecond.copy(), tenOutput, mode='bilinear')
+            # # DVP 4-16PPT loss
+            # pwc_loss = Lc_loss(process_gt[0, :, :, :].unsqueeze(0),
+            #                    torch.from_numpy(deformed_nearest).float().to('cuda').permute(0, 3, 1, 2) / 255.)
 
             # Compute loss
-            loss = L2Loss(process_gt, out_train) + pwc_loss
-            # loss = criterion(process_gt, out_train)
+            loss = Lc_loss(process_gt, out_train)
             loss.backward()
             optimizer.step()
 
@@ -147,12 +150,14 @@ def main(**args):
         pnsr_list['{}'.format(epoch)] = cur_epoch_psnr
         print("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr,loss))
         logger.info("[epoch %d] PSNR_val: %.4f,loss: %.4f" % (epoch + 1, cur_epoch_psnr, loss))
-
+        writer.add_scalar('PSNR on validation data', cur_epoch_psnr, epoch+1)
     sorted_psnr = sorted(pnsr_list.items(),key=lambda x:x[1],reverse=True)
     print(sorted_psnr)
     max_psnr_epoch = sorted_psnr[0][0]
     max_psnr = sorted_psnr[0][1]
     print('the max psnr :{} epoch: {} '.format(max_psnr,max_psnr_epoch))
+    logger.info('the max psnr :{} epoch: {} '.format(max_psnr,max_psnr_epoch))
+
 
 
     # Print elapsed time
@@ -160,7 +165,7 @@ def main(**args):
     print('Elapsed time {}'.format(time.strftime("%H:%M:%S", time.gmtime(elapsed_time))))
 
     # Close logger file
-    close_logger(logger)
+    # close_logger(logger)
 if __name__ == '__main__':
     # Parse arguments
     parser = argparse.ArgumentParser()
@@ -168,15 +173,15 @@ if __name__ == '__main__':
     parser.add_argument("--save_freq", default=2, type=int, help="save frequency of epochs")
 
     # save path
-    # parser.add_argument("--input_path", default='../data/aerobatics/25/noise_input', type=str,help="dir of the noise video")
-    # parser.add_argument("--processed_path", default='../data/aerobatics/25/dncnn_process', type=str, help="dir of processed gt video")
-    # parser.add_argument("--gt_path", default='../data/aerobatics/gt', type=str, help="dir of processed gt video")
-    parser.add_argument("--input_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input',
-                        type=str, help="dir of the noise video")
-    parser.add_argument("--processed_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/dncnn_process',
-                        type=str, help="dir of processed gt video")
-    parser.add_argument("--gt_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/gt', type=str,
-                        help="dir of gt video")
+    parser.add_argument("--input_path", default='../data/aerobatics/50/noise_input', type=str,help="dir of the noise video")
+    parser.add_argument("--processed_path", default='../data/aerobatics/50/dncnn_process', type=str, help="dir of processed gt video")
+    parser.add_argument("--gt_path", default='../data/aerobatics/gt', type=str, help="dir of processed gt video")
+    # parser.add_argument("--input_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input',
+    #                     type=str, help="dir of the noise video")
+    # parser.add_argument("--processed_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/dncnn_process',
+    #                     type=str, help="dir of processed gt video")
+    # parser.add_argument("--gt_path", default='../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/gt', type=str,
+    #                     help="dir of gt video")
     parser.add_argument("--save_path", default='./result', type=str, help="dir of output video")
     parser.add_argument("--dont_save_results", action='store_true', help="don't save output images")
 

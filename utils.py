@@ -19,6 +19,7 @@ from random import choices # requires Python >= 3.6
 import numpy as np
 import cv2
 import torch
+import time
 # need
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
 from skimage.metrics import structural_similarity as compare_ssim
@@ -260,7 +261,7 @@ def init_logger(log_dir, argdict):
 
 	logger = logging.getLogger(__name__)
 	logger.setLevel(level=logging.INFO)
-	fh = logging.FileHandler(join(log_dir, 'log.txt'), mode='w+')
+	fh = logging.FileHandler(join(log_dir, str(round(time.time() * 1000))+'log.txt'), mode='w+')
 	formatter = logging.Formatter('%(asctime)s - %(message)s')
 	fh.setFormatter(formatter)
 	logger.addHandler(fh)

@@ -65,7 +65,7 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser(description="Denoise")
     parser.add_argument("--model_file", type=str,
-                        default="logstets/net.pth",
+                        default="logstets/ckpt_e96.pth",
                         help='path to model of the pretrained denoiser')
     parser.add_argument("--test_path", type=str, default="../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input",
                         help='path to sequence to denoise')
