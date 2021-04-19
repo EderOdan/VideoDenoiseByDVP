@@ -97,8 +97,10 @@ def main(**args):
             out_train = model(net_in)
 
 
-            tenFirst = net_in[0, :, :, :]
-            tenSecond = net_in[1, :, :, :]
+            # tenFirst = net_in[0, :, :, :]
+            # tenSecond = net_in[1, :, :, :]
+            tenFirst = out_train[0, :, :, :]
+            tenSecond = out_train[1, :, :, :]
             tenOutput = pwcnet(tenFirst, tenSecond).detach().permute(0, 2, 3, 1).numpy()
             tenSecond = tenSecond.cpu().unsqueeze(0).permute(0, 2, 3, 1).detach().numpy() * (255.0)
             deformed_nearest = image_warp(tenSecond.copy(), tenOutput, mode='bilinear')
