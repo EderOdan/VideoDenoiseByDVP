@@ -25,7 +25,7 @@ def get_imagenames(seq_dir, pattern=None):
     files.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
     return files
 class Video_Provider_For_Davis(Dataset):
-    def __init__(self, gt_path,process_path, aug_mode=False,odd_frame_mode = True,sigma_seed= 0 ,sigma = 25):
+    def __init__(self, gt_path,process_path,sigma_seed= 0 ,sigma = 25):
     # def __init__(self, gt_path,process_path):
         if not os.path.exists(gt_path):
             raise("file_name is not valid")
@@ -41,7 +41,7 @@ class Video_Provider_For_Davis(Dataset):
         self.process_seq = np.concatenate([np.expand_dims(self.process_seq[-1, :, :, :], 0), self.process_seq], axis=0)
 
     def __len__(self):
-        return len(self.files)
+        return len(self.files)+1
 
     def __getitem__(self,index):
         noise=self.gt_seq[index,:,:,:]
@@ -49,58 +49,50 @@ class Video_Provider_For_Davis(Dataset):
         # print(noise.shape)
         noise = noise + g_noise
         process_gt = self.process_seq[index,:,:,:]
-        gt = self.gt_seq[index,:,:,:]
-        return noise, process_gt,gt
+        return noise, process_gt
 class Video_Provider_For_IOCV(Dataset):
-    def __init__(self, noise_path,process_path, twoframes, aug_mode=False,odd_frame_mode = True,):
+    def __init__(self, noise_path,process_path):
     # def __init__(self, gt_path,process_path):
         if not os.path.exists(noise_path):
             raise("file_name is not valid")
         # self.aug_mode = aug_mod
-        self.twoframes = twoframes
         self.noise_path = noise_path
         self.process_path = process_path
         self.files = get_imagenames(noise_path)
         self.noise_seq, _, _ = open_sequence(self.noise_path, False, expand_if_needed=False, max_num_fr=100)
         self.process_seq, _, _ = open_sequence(self.process_path, False, expand_if_needed=False,max_num_fr=100)
-        if not len(self.files)%2 == 0:
-            self.noise_seq = np.concatenate([np.expand_dims(self.noise_seq[-1, :, :, :], 0), self.noise_seq], axis=0)
-            self.process_seq = np.concatenate([np.expand_dims(self.process_seq[-1, :, :, :], 0), self.process_seq], axis=0)
-            print('the frames have been added to be odd')
+        #
+        self.noise_seq = np.concatenate([np.expand_dims(self.noise_seq[-1, :, :, :], 0), self.noise_seq], axis=0)
+        self.process_seq = np.concatenate([np.expand_dims(self.process_seq[-1, :, :, :], 0), self.process_seq], axis=0)
+        print('the frames have been added to be odd')
     def __len__(self):
-        if not len(self.files)%2 == 0:
-            return len(self.files)+1
-        else:
-            return len(self.files)
+        return len(self.files)+1
     def __getitem__(self,index):
-        if self.twoframes:
-            noise = np.concatenate([np.expand_dims(self.noise_seq[index, :, :, :], 0), np.expand_dims(self.noise_seq[index+1, :, :, :], 0)], axis=0)
-            process_gt = np.concatenate([np.expand_dims(self.process_seq[index, :, :, :], 0), np.expand_dims(self.process_seq[index + 1, :, :, :], 0)],axis=0)
-        else:
-            noise = self.noise_seq[index, :, :, :]
-            process_gt = self.process_seq[index, :, :, :]
+        noise = self.noise_seq[index, :, :, :]
+        process_gt = self.process_seq[index, :, :, :]
         return noise, process_gt
 def Davis_dataset_test():
     gt_path = '../data/aerobatics/gt'
-    process_path = '../data/aerobatics/25/dncnn_process'
+    process_path = '../data/aerobatics/25/CBM3D_process'
     dataset = Video_Provider_For_Davis(gt_path=gt_path,process_path= process_path )
     print(len(dataset))
-    train_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
-    for index, (noise, process_gt, gt) in enumerate(train_loader):
-        # print(batch_psnr(process_gt,gt,1.))
-        if index == 1:
-            out_img = noise.cpu() [0]* 255
-            out_img = out_img.clamp(0, 255).type(torch.uint8).permute(1, 2, 0).numpy()
-            # out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
-            # noisyimg = noise.clamp(0., 1.).cpu().numpy()*(255.)
-            # noisyimg = noisyimg.clip(0, 255).astype(np.uint8)
-            # noisyimg = cv2.cvtColor(noisyimg, cv2.COLOR_RGB2BGR)
-            cv2.imwrite('./testgt.png', out_img)
+    train_loader = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, pin_memory=True)
+    for index, (noise, process_gt) in enumerate(train_loader):
+        print(noise.shape)
+        #print(batch_psnr(noise,gt,1.))
+        # if index == 1:
+        #     out_img = noise.cpu() [0]* 255
+        #     out_img = out_img.clamp(0, 255).type(torch.uint8).permute(1, 2, 0).numpy()
+        #     # out_img = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
+        #     # noisyimg = noise.clamp(0., 1.).cpu().numpy()*(255.)
+        #     # noisyimg = noisyimg.clip(0, 255).astype(np.uint8)
+        #     # noisyimg = cv2.cvtColor(noisyimg, cv2.COLOR_RGB2BGR)
+        #     cv2.imwrite('./testgt.png', out_img)
 def IOCV_dataset_test():
     noise_path = '../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/noise_input'
 
     process_path = '../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/dncnn_process'
-    dataset = Video_Provider_For_IOCV(noise_path = noise_path, process_path=process_path,twoframes= False)
+    dataset = Video_Provider_For_IOCV(noise_path = noise_path, process_path=process_path)
     print(len(dataset))
     print(dataset[46][0].shape)
     train_loader = DataLoader(dataset, batch_size=2, shuffle=False, num_workers=0, pin_memory=True)
@@ -125,23 +117,17 @@ class ValDataset_IOCV(Dataset):
         self.gt_path = gt_path
         self.files = get_imagenames(gt_path)
         self.gt_seq, _, _ = open_sequence(self.gt_path, False, expand_if_needed=False, max_num_fr=100)
-        if not len(self.files) % 2 == 0:
-            self.gt_seq = np.concatenate([np.expand_dims(self.gt_seq[-1, :, :, :], 0), self.gt_seq], axis=0)
-            print('the frames have been added to be odd')
+        self.gt_seq = np.concatenate([np.expand_dims(self.gt_seq[-1, :, :, :], 0), self.gt_seq], axis=0)
         self.frames = len(self.files)
 
     def __len__(self):
-        if not len(self.files)%2 == 0:
-            return self.frames+1
-        else:
-            return self.frames
-
+        return self.frames+1
     def __getitem__(self,index):
         gt = self.gt_seq[index,:,:,:]
         return gt
 
 if __name__ == '__main__':
-    IOCV_dataset_test()
+    Davis_dataset_test()
 
     # gt_path = '../data/IOCV/HUAWEI_HONOR_6X_FC_S_60_INDOOR_V1_1/gt'
     # dataset = ValDataset_IOCV(gt_path=gt_path)

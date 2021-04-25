@@ -23,8 +23,8 @@ except:
 assert(int(str('').join(torch.__version__.split('.')[0:2])) >= 13) # requires at least pytorch version 1.3.0
 
 # torch.set_grad_enabled(False) # make sure to not compute gradients for computational performance
-#
-# torch.backends.cudnn.enabled = True # make sure to use cudnn for computational performance
+
+torch.backends.cudnn.enabled = True # make sure to use cudnn for computational performance
 
 ##########################################################
 
@@ -353,12 +353,21 @@ def warp(x, flo):
 
 	return output * mask
 # if __name__ == '__main__':
-
 #
 #
+# 	# 4-25
 # 	tenFirst = torch.FloatTensor(numpy.ascontiguousarray(numpy.array(PIL.Image.open(arguments_strFirst))[:, :, ::-1].transpose(2, 0, 1).astype(numpy.float32) * (1.0 / 255.0)))
 # 	tenSecond = torch.FloatTensor(numpy.ascontiguousarray(numpy.array(PIL.Image.open(arguments_strSecond))[:, :, ::-1].transpose(2, 0, 1).astype(numpy.float32) * (1.0 / 255.0)))
+# 	tenOutput = estimate(tenFirst, tenSecond).cuda()
+# 	# print(tenSecond)
+# 	tenPreprocessedFirst = tenFirst.view(1, 3, tenFirst.shape[1], tenFirst.shape[2]).cuda()
+# 	tenPreprocessedSecond = tenSecond.view(1, 3, tenSecond.shape[1], tenSecond.shape[2]).cuda()
 #
+# 	esti_pic = backwarp(tenPreprocessedSecond, tenOutput).cpu()*255.
+# 	out_img = esti_pic.clamp(0, 255).type(torch.uint8)[0].permute(1, 2, 0).numpy()
+#
+# 	# out_img = cv2.cvtColor(esti_pic, cv2.COLOR_RGB2BGR)
+# 	cv2.imwrite('./test.png', out_img)
 #
 # 	# ke shi hua
 # 	# tenOutput = estimate(tenFirst, tenSecond).permute(0,2,3,1).numpy()[0] # (436,1024,2)
